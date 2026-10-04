@@ -5,6 +5,7 @@ type Pending = {
   messages: Msg[]
   connectionId?: string
   characterId?: string
+  userId?: string
   abort: AbortController
   spare?: Promise<string | null>
 }
@@ -26,18 +27,20 @@ spindle.registerInterceptor(async (messages: Msg[], ctx: any) => {
   return messages
 }, 100000)
 
-spindle.on('GENERATION_STARTED', (p: any) => {
+// Operator-scoped installs must pass userId explicitly; events carry it as the second argument.
+spindle.on('GENERATION_STARTED', (p: any, userId?: string) => {
   const s = pending.get(p.chatId)
-  if (s) s.characterId = p.characterId
+  if (s) Object.assign(s, { characterId: p.characterId, userId })
 })
 
 // The first streamed token means the main prompt has been prefilled and
 // cached, so starting the spare now avoids a second full prefill.
-spindle.on('STREAM_TOKEN_RECEIVED', (p: any) => {
+spindle.on('STREAM_TOKEN_RECEIVED', (p: any, userId?: string) => {
   const s = pending.get(p.chatId)
   if (!s || s.spare) return
+  s.userId ??= userId
   s.spare = spindle.generate
-    .quiet({ messages: s.messages, connection_id: s.connectionId, signal: s.abort.signal })
+    .quiet({ messages: s.messages, connection_id: s.connectionId, userId: s.userId, signal: s.abort.signal })
     .then((r: any) => (r?.content?.trim() ? r.content : null))
     .catch((e: any) => {
       if (e?.name !== 'AbortError') spindle.log.warn(`spare generation failed: ${e?.message ?? e}`)
@@ -58,7 +61,7 @@ spindle.on('GENERATION_ENDED', async (p: any) => {
 
   const text = await s.spare
   if (!text) return
-  const content = await applyResponseRegex(text, p.chatId, s.characterId)
+  const content = await applyResponseRegex(text, p.chatId, s.characterId, s.userId)
 
   const msg = (await spindle.chat.getMessages(p.chatId)).find((m: any) => m.id === p.messageId)
   if (!msg) return
@@ -68,8 +71,8 @@ spindle.on('GENERATION_ENDED', async (p: any) => {
 
 // The host applies response-target regexes only on its own generation path,
 // so the spare has to get them here.
-async function applyResponseRegex(text: string, chatId: string, characterId?: string) {
-  const scripts = await spindle.regex_scripts.getActive({ target: 'response', chatId, characterId })
+async function applyResponseRegex(text: string, chatId: string, characterId?: string, userId?: string) {
+  const scripts = await spindle.regex_scripts.getActive({ target: 'response', chatId, characterId, userId })
   for (const s of scripts) {
     if (!s.placement.includes('ai_output')) continue
     // ponytail: plain find/replace only; macro and match-action scripts are skipped, port them if one gets enabled.
