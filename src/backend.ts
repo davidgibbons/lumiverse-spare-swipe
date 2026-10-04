@@ -63,6 +63,7 @@ spindle.on('GENERATION_ENDED', async (p: any) => {
   if (!text) return
   const content = await applyResponseRegex(text, p.chatId, s.characterId, s.userId)
 
+  spindle.log.info(`debug spare: text=${typeof text}/${text?.length} content=${typeof content}/${content?.length}`)
   const msg = (await spindle.chat.getMessages(p.chatId)).find((m: any) => m.id === p.messageId)
   if (!msg) return
   // Omitting swipe_id keeps the streamed reply as the active swipe.
