@@ -1,0 +1,11 @@
+{
+  "version": "0.1.0",
+  "name": "Spare Swipe",
+  "identifier": "spare_swipe",
+  "author": "davidgibbons",
+  "github": "https://github.com/davidgibbons/lumiverse-spare-swipe",
+  "homepage": "https://github.com/davidgibbons/lumiverse-spare-swipe",
+  "description": "Generates a second reply alongside the streamed one and stores it as an inactive swipe.",
+  "permissions": ["interceptor", "generation", "chat_mutation", "regex_scripts"],
+  "entry_backend": "dist/backend.js"
+}
